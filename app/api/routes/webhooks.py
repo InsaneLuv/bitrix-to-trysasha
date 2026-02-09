@@ -106,7 +106,7 @@ async def process_deal(result, bot, bitrix):
                 "fields": ftu
             },
         )
-        return
+        return None
 
     ftu = {
         "TITLE": "ПРОГРЕВ ВЫПОЛНЕН " + title,
