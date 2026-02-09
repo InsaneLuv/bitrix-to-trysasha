@@ -1,3 +1,4 @@
+import enum
 from typing import Any
 
 from aiogram import Bot
@@ -11,6 +12,62 @@ from fastapi import APIRouter
 from app.models.sasha import CallResultEvent, DealFieldsEnum
 
 router = APIRouter(route_class=DishkaRoute)
+
+
+
+class CallbackTexts:
+    """Класс для генерации текстов callback-сообщений."""
+
+    CALL_FAILED = "📞❌ 3 недозвона!"
+    CALL_RECALL = "🔔 Попросил перезвонить!"
+    CALL_UNSUCCESS = "❌ Неудачный звонок!"
+    CALL_SUCCESS = "✅ Успешный прогрев!"
+
+    MESSAGES = {
+        'failed': CALL_FAILED,
+        'recall': CALL_RECALL,
+        'unsuccess': CALL_UNSUCCESS,
+        'success': CALL_SUCCESS
+    }
+
+    @classmethod
+    def format_message(cls, result: CallResultEvent, message_type: str) -> str:
+        if message_type not in cls.MESSAGES:
+            raise ValueError(f"Unknown message type: {message_type}")
+
+        title = cls.MESSAGES[message_type]
+        record_url = result.call.record_url
+        bitrix_url = result.contact.bitrix_url
+        facts = result.call.agreements.client_facts or ""
+
+        deal_text = "💎 Сделка" if result.contact.deal_id else "🌈 Лид"
+
+        text_parts = [
+            title,
+            "",
+            facts if facts else "(без комментариев)",
+            "",
+            TextLink("💾 Аудио", url=record_url).as_html(),
+            TextLink(deal_text, url=bitrix_url).as_html()
+        ]
+
+        return "\n".join(text_parts)
+
+    @classmethod
+    def call_failed(cls, result: CallResultEvent):
+        return cls.format_message(result, 'failed')
+
+    @classmethod
+    def call_recall(cls, result: CallResultEvent):
+        return cls.format_message(result, 'recall')
+
+    @classmethod
+    def call_unsuccess(cls, result: CallResultEvent):
+        return cls.format_message(result, 'unsuccess')
+
+    @classmethod
+    def call_success(cls, result: CallResultEvent):
+        return cls.format_message(result, 'success')
 
 
 async def process_deal(result, bot, bitrix):
@@ -48,7 +105,7 @@ async def process_deal(result, bot, bitrix):
         if session.attempts_left == 0:
             await bot.send_message(
                 chat_id="-1003363598566",
-                text=f"❌ 3 недозвона по сделке!\n\n{facts if facts else ""}\n\n{TextLink("Ссылка", url=record_file_url).as_html()}",
+                text=CallbackTexts.call_failed(result),
                 parse_mode="HTML"
             )
             await bitrix.call(
@@ -73,7 +130,7 @@ async def process_deal(result, bot, bitrix):
         }
         await bot.send_message(
             chat_id="-1003363598566",
-            text=f"🔔 Попросил перезвонить!\n\n{facts if facts else ""}\n\n{TextLink("Ссылка", url=record_file_url).as_html()}",
+            text=CallbackTexts.call_recall(result),
             parse_mode="HTML"
         )
         await bitrix.call(
@@ -94,7 +151,7 @@ async def process_deal(result, bot, bitrix):
         }
         await bot.send_message(
             chat_id="-1003363598566",
-            text=f"❌ Неудачный звонок!\n\n{facts if facts else ""}\n\n{TextLink("Ссылка", url=result.contact.bitrix_url).as_html()}",
+            text=CallbackTexts.call_unsuccess(result),
             parse_mode="HTML"
         )
 
@@ -123,7 +180,7 @@ async def process_deal(result, bot, bitrix):
     )
     await bot.send_message(
         chat_id="-1003363598566",
-        text=f"✅ Успешный прогрев (сделка)!\n\n{facts if facts else ""}\n\n{TextLink("Ссылка", url=result.contact.bitrix_url).as_html()}",
+        text=CallbackTexts.call_success(result),
         parse_mode="HTML"
     )
     return None
@@ -182,7 +239,7 @@ async def process_lead(result, bot, bitrix):
         ftu["STATUS_ID"] = "UC_LLR3RD"
         await bot.send_message(
             chat_id="-1003363598566",
-            text=f"🔔 Попросил перезвонить!\n\n{facts if facts else ""}\n\n{TextLink("Ссылка", url=result.contact.bitrix_url).as_html()}",
+            text=CallbackTexts.call_recall(result),
             parse_mode="HTML"
         )
         await bitrix.call(
@@ -196,7 +253,7 @@ async def process_lead(result, bot, bitrix):
     elif not result.call.agreements.is_commit:
         await bot.send_message(
             chat_id="-1003363598566",
-            text=f"❌ Неудачный звонок!\n\n{facts if facts else ""}\n\n{TextLink("Ссылка", url=result.contact.bitrix_url).as_html()}",
+            text=CallbackTexts.call_failed(result),
             parse_mode="HTML"
         )
         await bitrix.call(
@@ -224,9 +281,8 @@ async def process_lead(result, bot, bitrix):
 
     await bot.send_message(
         chat_id="-1003363598566",
-        text=f"👤 ✅ Лид обработан!\n\n{facts if facts else ""}\n\n{TextLink("Ссылка", url=result.contact.bitrix_url).as_html()}",
+        text=CallbackTexts.call_success(result),
         parse_mode="HTML",
-        disable_web_page_preview=True,
     )
     return None
 
