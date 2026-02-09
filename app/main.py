@@ -12,7 +12,6 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from taskiq import InMemoryBroker
 
-from app.api.routes.webhooks import router
 from app.core.config import get_app_settings
 from app.core.providers import NotificationsProvider, ServiceProvider, SettingsProvider
 from app.services.bitrix import BitrixService
@@ -92,6 +91,9 @@ def get_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    from app.api.routes.webhooks import router
+    application.include_router(router, prefix=settings.api_prefix)
+    from app.api.routes.root import router
     application.include_router(router, prefix=settings.api_prefix)
     return application
 
